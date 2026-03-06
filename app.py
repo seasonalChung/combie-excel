@@ -22,25 +22,39 @@ if uploaded_files:
     
     for uploaded_file in uploaded_files:
         try:
-            # 判斷引擎：.xls 使用 xlrd, .xlsx 使用預設引擎
-            engine = "xlrd" if uploaded_file.name.endswith(".xls") else None
-            df = pd.read_excel(uploaded_file, header=None, engine=engine)
-            
-            # 檢查檔案欄位數量是否足夠 (至少到 F 欄，即索引 5)
-            if df.shape[1] >= 6:
-                # 跳過第一列標題
+            df = None
+            # 嘗試第一種方式：標準 Excel 讀取
+            try:
+                engine = "xlrd" if uploaded_file.name.endswith(".xls") else "openpyxl"
+                df = pd.read_excel(uploaded_file, header=None, engine=engine)
+            except Exception as e:
+                # 如果報錯 Expected BOF，代表它是 XML/HTML 格式
+                if "Expected BOF" in str(e) or "XML" in str(e):
+                    # 嘗試第二種方式：讀取 HTML 表格 (通常 .xls 偽裝檔都是這種)
+                    # 需要安裝 lxml: pip install lxml
+                    dfs = pd.read_html(uploaded_file)
+                    if dfs:
+                        df = dfs[0]
+                else:
+                    raise e # 若是其他錯誤則拋出
+
+            # 確保有讀取到資料
+            if df is not None and df.shape[1] >= 6:
+                # 處理表格：有些 HTML 轉過來的表格標題會佔多列，這裡做簡單處理
+                # 如果第一列看起來像標題（包含文字），我們從下一列開始
                 data_df = df.iloc[1:].copy()
                 
-                # 數值轉換：將 F 欄轉換為數字，無法轉換的會變成 NaN
-                data_df[5] = pd.to_numeric(data_df[5], errors='coerce')
+                # 強制轉換 F 欄 (索引 5) 為數字
+                data_df.iloc[:, 5] = pd.to_numeric(data_df.iloc[:, 5], errors='coerce')
                 
-                # 核心篩選邏輯：B 欄 (索引 1) 不為空 且 F 欄 (索引 5) >= 6
-                mask = (data_df[1].notna()) & (data_df[5] >= 6)
+                # 篩選：B 欄 (索引 1) 不為空 且 F 欄 (索引 5) >= 6
+                # 使用 iloc 確保即使欄位名稱不見了也能運作
+                mask = (data_df.iloc[:, 1].notna()) & (data_df.iloc[:, 5] >= 6)
                 filtered = data_df[mask].copy()
                 
                 if not filtered.empty:
-                    # 擷取 A, B, C, F 欄位
-                    target_columns = filtered[[0, 1, 2, 5]]
+                    # 擷取 A, B, C, F 欄位 (索引 0, 1, 2, 5)
+                    target_columns = filtered.iloc[:, [0, 1, 2, 5]]
                     all_rows.append(target_columns)
             
         except Exception as e:
@@ -82,3 +96,4 @@ if uploaded_files:
         )
     else:
         st.info("目前尚未發現符合條件 (F 欄 $\ge 6$ 且 B 欄有座號) 的資料。")
+
