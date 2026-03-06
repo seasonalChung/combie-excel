@@ -6,7 +6,7 @@ import io
 st.set_page_config(page_title="學生閱讀獎勵統計系統", layout="wide")
 
 st.title("📚 學生閱讀獎勵自動統計系統")
-st.markdown("""
+st.markdown(r"""
 **規則說明：**
 1. 檢查 **B 欄 (座號)** 是否有資料。
 2. 檢查 **F 欄 (數量)** 是否 $\ge 6$。
@@ -77,4 +77,5 @@ if uploaded_files:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
+
         st.warning("所選檔案中沒有符合條件 (B欄有資料且F欄>=6) 的數據。")
